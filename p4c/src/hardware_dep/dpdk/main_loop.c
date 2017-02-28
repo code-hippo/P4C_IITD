@@ -34,7 +34,7 @@
 // main.c in the l3fwd example of DPDK 2.2.0.
 
 #include "dpdk_lib.h"
-
+#include "actions.h"
 #include <rte_ethdev.h>
 
 struct rte_mempool *header_pool, *clone_pool;
@@ -373,6 +373,30 @@ packet_received(packet_descriptor_t* pd, packet *p, unsigned portid, struct lcor
     send_packet(pd);
 }
 
+/*Populate table with the fake key value pairs*/
+void
+init_tables(lookup_table_t** tables) {
+        uint8_t src[6];
+        uint8_t* key;
+        struct smac_action svalue;
+        svalue.action_id = action__nop;
+        struct dmac_action dvalue;
+        dvalue.action_id = action_forward;
+        dvalue.forward_params.port[0] = 1;      //TODO: Ankit ? (ingress+1)%2
+        int j = 0;
+        for (j = 0; j < 3200000; j++) {
+                int number = j, array = 5;
+                while (array >= 0) {
+                        src[array--] = number % 256; //TODO: Ankit ? Proper format for MAC Address
+                        number = number / 256;
+                }
+                key = src;
+                exact_add(tables[TABLE_smac], key, (uint8_t *) &svalue);
+                exact_add(tables[TABLE_dmac], key, (uint8_t *) &dvalue);
+        }
+        debug("Table init Done\n");
+}
+
 void
 dpdk_main_loop(void)
 {
@@ -406,6 +430,7 @@ dpdk_main_loop(void)
 
     packet_descriptor_t pd;
     init_dataplane(&pd, qconf->state.tables);
+    init_tables(qconf->state.tables);
 
     while (1) {
 
