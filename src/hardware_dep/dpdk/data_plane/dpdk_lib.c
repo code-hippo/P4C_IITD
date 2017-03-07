@@ -782,7 +782,7 @@ initialize(int argc, char **argv)
                         if (port_conf.rxmode.jumbo_frame)
                                 txconf->txq_flags = 0;
                         ret = rte_eth_tx_queue_setup(portid, queueid, nb_txd,
-                                                     socketid, txconf);
+                                                     socketid, txconf);    /// ????
                         if (ret < 0)
                                 rte_exit(EXIT_FAILURE, "rte_eth_tx_queue_setup: err=%d, "
                                         "port=%d\n", ret, portid);
@@ -815,7 +815,7 @@ initialize(int argc, char **argv)
                         ret = rte_eth_rx_queue_setup(portid, queueid, nb_rxd,
                                         socketid,
                                         NULL,
-                                        pktmbuf_pool[socketid]);
+                                        pktmbuf_pool[socketid]);   /// ????
                         if (ret < 0)
                                 rte_exit(EXIT_FAILURE, "rte_eth_rx_queue_setup: err=%d,"
                                                 "port=%d\n", ret, portid);

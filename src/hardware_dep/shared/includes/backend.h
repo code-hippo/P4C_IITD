@@ -52,6 +52,7 @@ void             lpm_add (lookup_table_t* t, uint8_t* key, uint8_t depth, uint8_
 void         ternary_add (lookup_table_t* t, uint8_t* key, uint8_t* mask, uint8_t* value);
 
 uint8_t*    exact_lookup (lookup_table_t* t, uint8_t* key);
+void    exact_lookups (lookup_table_t* t, int batch_size, uint8_t* key[][6], uint8_t ** I_);
 uint8_t*      lpm_lookup (lookup_table_t* t, uint8_t* key);
 uint8_t*  ternary_lookup (lookup_table_t* t, uint8_t* key);
 

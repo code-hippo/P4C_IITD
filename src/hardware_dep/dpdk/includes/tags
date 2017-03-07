@@ -1,0 +1,81 @@
+!_TAG_FILE_FORMAT	2	/extended format; --format=1 will not append ;" to lines/
+!_TAG_FILE_SORTED	1	/0=unsorted, 1=sorted, 2=foldcase/
+!_TAG_PROGRAM_AUTHOR	Darren Hiebert	/dhiebert@users.sourceforge.net/
+!_TAG_PROGRAM_NAME	Exuberant Ctags	//
+!_TAG_PROGRAM_URL	http://ctags.sourceforge.net	/official site/
+!_TAG_PROGRAM_VERSION	5.9~svn20110310	//
+BURST_TX_DRAIN_US	dpdk_lib.h	89;"	d
+DPDK_LIB_H	dpdk_lib.h	15;"	d
+DPDK_PRIMITIVES_H	dpdk_primitives.h	15;"	d
+DPDK_TABLES_H	dpdk_tables.h	15;"	d
+EXTRACT_BYTEBUF	dpdk_primitives.h	102;"	d
+EXTRACT_INT32_AUTO	dpdk_primitives.h	97;"	d
+EXTRACT_INT32_BITS	dpdk_primitives.h	75;"	d
+EXTRACT_INT32_NTOH	dpdk_primitives.h	85;"	d
+FIELD_BYTE_ADDR	dpdk_primitives.h	20;"	d
+GET_INT32_AUTO	dpdk_primitives.h	70;"	d
+HASH_ENTRIES	dpdk_tables.h	28;"	d
+HASH_ENTRIES	dpdk_tables.h	31;"	d
+HTON_FIELD	dpdk_primitives.h	28;"	d
+LPM6_NUMBER_TBL8S	dpdk_tables.h	34;"	d
+LPM_MAX_RULES	dpdk_tables.h	33;"	d
+MAX_ETHPORTS	dpdk_lib.h	61;"	d
+MAX_PKT_BURST	dpdk_lib.h	87;"	d
+MAX_RX_QUEUE_PER_LCORE	dpdk_lib.h	97;"	d
+MAX_RX_QUEUE_PER_PORT	dpdk_lib.h	99;"	d
+MAX_TX_QUEUE_PER_PORT	dpdk_lib.h	98;"	d
+MBUF_SIZE	dpdk_lib.h	74;"	d
+MEMPOOL_CACHE_SIZE	dpdk_lib.h	85;"	d
+MODIFY_BYTEBUF_BYTEBUF	dpdk_primitives.h	34;"	d
+MODIFY_INT32_BYTEBUF	dpdk_primitives.h	40;"	d
+MODIFY_INT32_INT32_AUTO	dpdk_primitives.h	65;"	d
+MODIFY_INT32_INT32_BITS	dpdk_primitives.h	48;"	d
+MODIFY_INT32_INT32_HTON	dpdk_primitives.h	55;"	d
+NB_MBUF	dpdk_lib.h	84;"	d
+NB_REPLICA	dpdk_lib.h	113;"	d
+NB_SOCKETS	dpdk_lib.h	101;"	d
+NB_TABLES	dpdk_lib.h	105;"	d
+NTOH_FIELD	dpdk_primitives.h	23;"	d
+PRINT_OPAQUE_STRUCT	dpdk_lib.h	150;"	d
+RTE_LOGTYPE_L2FWD	dpdk_lib.h	71;"	d
+RTE_LOGTYPE_L3FWD	dpdk_lib.h	70;"	d
+RTE_LOGTYPE_P4_FWD	dpdk_lib.h	72;"	d
+TABCHANGE_DELAY	dpdk_lib.h	139;"	d
+TABLE_MAX	dpdk_tables.h	36;"	d
+__ALIASES_H_	aliases.h	15;"	d
+__rte_cache_aligned	dpdk_lib.h	/^} __rte_cache_aligned;$/;"	v	typeref:struct:l2fwd_port_statistics
+__rte_cache_aligned	dpdk_lib.h	/^} __rte_cache_aligned;$/;"	v	typeref:struct:lcore_conf
+__rte_cache_aligned	dpdk_lib.h	/^} __rte_cache_aligned;$/;"	v	typeref:struct:lcore_rx_queue
+active_replica	dpdk_lib.h	/^    int              active_replica [NB_TABLES];$/;"	m	struct:socket_state
+content	dpdk_tables.h	/^    uint8_t** content;$/;"	m	struct:extended_table_s
+counters	dpdk_lib.h	/^    counter_t      * counters       [NB_COUNTERS][RTE_MAX_LCORE];$/;"	m	struct:socket_state
+counters	dpdk_lib.h	/^    counter_t      * counters [NB_COUNTERS];$/;"	m	struct:lcore_state
+dropped	dpdk_lib.h	/^	uint64_t dropped;$/;"	m	struct:l2fwd_port_statistics
+extended_table_s	dpdk_tables.h	/^typedef struct extended_table_s {$/;"	s
+extended_table_t	dpdk_tables.h	/^} extended_table_t;$/;"	t	typeref:struct:extended_table_s
+l2fwd_port_statistics	dpdk_lib.h	/^struct l2fwd_port_statistics {$/;"	s
+lcore_conf	dpdk_lib.h	/^struct lcore_conf {$/;"	s
+lcore_rx_queue	dpdk_lib.h	/^struct lcore_rx_queue {$/;"	s
+lcore_state	dpdk_lib.h	/^struct lcore_state {$/;"	s
+len	dpdk_lib.h	/^	uint16_t len;$/;"	m	struct:mbuf_table
+m_table	dpdk_lib.h	/^	struct rte_mbuf *m_table[MAX_PKT_BURST];$/;"	m	struct:mbuf_table	typeref:struct:mbuf_table::rte_mbuf
+mbuf_table	dpdk_lib.h	/^struct mbuf_table {$/;"	s
+n_rx_queue	dpdk_lib.h	/^        uint16_t n_rx_queue;$/;"	m	struct:lcore_conf
+packet	aliases.h	/^typedef struct rte_mbuf packet;$/;"	t	typeref:struct:rte_mbuf
+parse_as	dpdk_lib.h	60;"	d
+port_id	dpdk_lib.h	/^	uint8_t port_id;$/;"	m	struct:lcore_rx_queue
+print_mem_bin	dpdk_lib.h	/^static void print_mem_bin(void const * const ptr, size_t const size)$/;"	f
+print_mem_hex	dpdk_lib.h	/^static void print_mem_hex(void const *vp, size_t n) {$/;"	f
+queue_id	dpdk_lib.h	/^	uint8_t queue_id;$/;"	m	struct:lcore_rx_queue
+rte_table	dpdk_tables.h	/^    void*     rte_table;$/;"	m	struct:extended_table_s
+rx	dpdk_lib.h	/^	uint64_t rx;$/;"	m	struct:l2fwd_port_statistics
+rx_queue_list	dpdk_lib.h	/^        struct lcore_rx_queue rx_queue_list[MAX_RX_QUEUE_PER_LCORE];$/;"	m	struct:lcore_conf	typeref:struct:lcore_conf::lcore_rx_queue
+size	dpdk_tables.h	/^    uint8_t   size;$/;"	m	struct:extended_table_s
+socket_state	dpdk_lib.h	/^struct socket_state {$/;"	s
+state	dpdk_lib.h	/^        struct lcore_state state;$/;"	m	struct:lcore_conf	typeref:struct:lcore_conf::lcore_state
+tables	dpdk_lib.h	/^    lookup_table_t * tables         [NB_TABLES][NB_REPLICA];$/;"	m	struct:socket_state
+tables	dpdk_lib.h	/^    lookup_table_t * tables   [NB_TABLES];$/;"	m	struct:lcore_state
+tx	dpdk_lib.h	/^	uint64_t tx;$/;"	m	struct:l2fwd_port_statistics
+tx_mbufs	dpdk_lib.h	/^        struct mbuf_table tx_mbufs[RTE_MAX_ETHPORTS];$/;"	m	struct:lcore_conf	typeref:struct:lcore_conf::mbuf_table
+tx_queue_id	dpdk_lib.h	/^        uint16_t tx_queue_id[RTE_MAX_ETHPORTS];$/;"	m	struct:lcore_conf
+tx_tsc	dpdk_lib.h	/^        uint64_t tx_tsc;$/;"	m	struct:lcore_conf

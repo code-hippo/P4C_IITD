@@ -104,4 +104,6 @@ echo "Controller log file: ${CONTROLLER_LOG}"
 
 
 # Start the program
+
+echo "trying to gdb"  ${P4_SWITCH} ${P4DPDK_EXEC_OPTS}
 sudo ${P4_SWITCH} ${P4DPDK_EXEC_OPTS}

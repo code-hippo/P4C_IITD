@@ -34,8 +34,7 @@
 // main.c in the l3fwd example of DPDK 2.2.0.
 
 #include "dpdk_lib.h"
-#include "fpp.h"
-#include "actions.h"
+
 #include <rte_ethdev.h>
 
 struct rte_mempool *header_pool, *clone_pool;
@@ -163,11 +162,11 @@ static inline void
 dbg_print_headers(packet_descriptor_t* pd)
 {
     for (int i = 0; i < HEADER_INSTANCE_COUNT; ++i) {
-        //debug("    :: header %d (type=%d, len=%d) = ", i, pd->headers[i].type, pd->headers[i].length);
+        debug("    :: header %d (type=%d, len=%d) = ", i, pd->headers[i].type, pd->headers[i].length);
         for (int j = 0; j < pd->headers[i].length; ++j) {
-            //debug("%02x ", ((uint8_t*)(pd->headers[i].pointer))[j]);
+            debug("%02x ", ((uint8_t*)(pd->headers[i].pointer))[j]);
         }
-        //debug("\n");
+        debug("\n");
     }
 }
 
@@ -210,7 +209,7 @@ dpdk_send_packet(struct rte_mbuf *m, uint8_t port, uint32_t lcore_id)
     len++;
 
     if (unlikely(len == MAX_PKT_BURST)) {
-       // debug("    :: BURST SENDING DPDK PACKETS - port:%d\n", port);
+        debug("    :: BURST SENDING DPDK PACKETS - port:%d\n", port);
         send_burst(qconf, MAX_PKT_BURST, port);
         len = 0;
     }
@@ -224,12 +223,12 @@ mcast_out_pkt(struct rte_mbuf *pkt, int use_clone)
 {
     struct rte_mbuf *hdr;
 
-    //debug("mcast_out_pkt new mbuf is needed...\n");
+    debug("mcast_out_pkt new mbuf is needed...\n");
         /* Create new mbuf for the header. */
         if ((hdr = rte_pktmbuf_alloc(header_pool)) == NULL)
                 return (NULL);
 
-    //debug("hdr is allocated\n");
+    debug("hdr is allocated\n");
 
     /* If requested, then make a new clone packet. */
     if (use_clone != 0 &&
@@ -238,7 +237,7 @@ mcast_out_pkt(struct rte_mbuf *pkt, int use_clone)
             return (NULL);
     }
 
-    //debug("setup ne header\n");
+    debug("setup ne header\n");
 
     /* prepend new header */
     hdr->next = pkt;
@@ -278,14 +277,14 @@ dpdk_mcast_packet(struct rte_mbuf *m, uint32_t port_mask, uint32_t lcore_id)
     if (use_clone == 0)
             rte_pktmbuf_refcnt_update(m, (uint16_t)port_num);
 
-    //debug("USE_CLONE = %d\n", use_clone);
+    debug("USE_CLONE = %d\n", use_clone);
 
     for (port = 0; use_clone != port_mask; port_mask >>= 1, port++) {
         /* Prepare output packet and send it out. */
         if ((port_mask & 1) != 0) {
-            //debug("MCAST - PORT -%d\n", port);
+            debug("MCAST - PORT -%d\n", port);
             if ((mc = mcast_out_pkt(m, use_clone)) != NULL) {
-                //debug("MCAST mc is ready\n");
+                debug("MCAST mc is ready\n");
                 dpdk_send_packet(mc, port, lcore_id);
             } else if (use_clone == 0) {
                 rte_pktmbuf_free(m);
@@ -334,33 +333,25 @@ dpdk_bcast_packet(struct rte_mbuf *m, uint8_t ingress_port, uint32_t lcore_id)
 #define EXTRACT_EGRESSPORT(p) (*(uint32_t *)(((uint8_t*)(p)->headers[/*header instance id - hopefully it's the very first one*/0].pointer)+/*byteoffset*/6) & /*mask*/0x7fc) >> /*bitoffset*/2
 #define EXTRACT_INGRESSPORT(p) (*(uint32_t *)(((uint8_t*)(p)->headers[/*header instance id - hopefully it's the very first one*/0].pointer)+/*byteoffset*/0) & /*mask*/0x1ff) >> /*bitoffset*/0
 
-int counter = 0;
-
 /* Enqueue a single packet, and send burst if queue is filled */
 static inline int
 send_packet(packet_descriptor_t* pd)
 {
     int port = EXTRACT_EGRESSPORT(pd);
     int inport = EXTRACT_INGRESSPORT(pd);
-   
+
 
     uint32_t lcore_id = rte_lcore_id();
-    if(counter ==0){
-       counter++;
-       debug(" inport : %d, eport : %d  :::: EGRESSING\n", inport, port);
-    }
 
-    //debug("  :::: EGRESSING\n");
-    //debug("    :: deparsing headers\n");
-    //debug("    :: sending packet on port %d (lcore %d)\n", port, lcore_id);
+    debug("  :::: EGRESSING\n");
+    debug("    :: deparsing headers\n");
+    debug("    :: sending packet on port %d (lcore %d)\n", port, lcore_id);
 
     if (port==100)
         dpdk_bcast_packet((struct rte_mbuf *)pd->wrapper, inport, lcore_id);
-    else{
-	//debug ("before finishing egressing\n");
+    else
         dpdk_send_packet((struct rte_mbuf *)pd->wrapper, port, lcore_id);
-   } 
-   //debug("finished egressing \n");
+
     return 0;
 }
 
@@ -382,61 +373,11 @@ packet_received(packet_descriptor_t* pd, packet *p, unsigned portid, struct lcor
     send_packet(pd);
 }
 
-
-void
-packets_received(packet_descriptor_t* pd, int batch_size, packet **p, unsigned portid, struct lcore_conf *conf)
-{
-    //prefetching the packets
-    for(int i=0; i<batch_size; i++){
-        if(i < batch_size-1){
-            rte_prefetch0(rte_pktmbuf_mtod(p[i+1], void *));
-	}
-	pd[i].data = rte_pktmbuf_mtod(p[i], uint8_t *);
-	pd[i].wrapper = p[i];
-	set_metadata_inport(&pd[i], portid);
-    }
-
-    //handling the packets , lookups etc.
-    handle_packets(pd, batch_size, conf->state.tables);
-
-    //sending the packets
-    for(int i=0; i<batch_size; i++){
-        send_packet(&pd[i]);
-    }
-}
-
-/*Populate table with the fake key value pairs*/
-void
-init_tables(lookup_table_t** tables) {
-        uint8_t src[6];
-        uint8_t* key;
-        struct smac_action svalue;
-        svalue.action_id = action__nop;
-        struct dmac_action dvalue;
-        dvalue.action_id = action_forward;
-        dvalue.forward_params.port[0] = 1;      //TODO: Ankit ? (ingress+1)%2
-        int j = 0;
-        for (j = 0; j < 3200000; j++) {
-                if(j%100000 == 0)
-                        debug("%d\n", j);
-                int number = j, array = 5;
-                while (array >= 0) {
-                        src[array--] = number % 256; //TODO: Ankit ? Proper format for MAC Address
-                        number = number / 256;
-                }
-                key = src;
-                exact_add(tables[TABLE_smac], key, (uint8_t *) &svalue);
-                exact_add(tables[TABLE_dmac], key, (uint8_t *) &dvalue);
-        }
-        debug("Table init Done\n");
-}
-
-
 void
 dpdk_main_loop(void)
 {
     packet *pkts_burst[MAX_PKT_BURST];
-    packet *p;//MAX_PKT_BURST];
+    packet *p;
     uint64_t prev_tsc, diff_tsc, cur_tsc;
     unsigned i, j, portid, nb_rx;
     const uint64_t drain_tsc = (rte_get_tsc_hz() + US_PER_S - 1) / US_PER_S * BURST_TX_DRAIN_US;
@@ -463,15 +404,9 @@ dpdk_main_loop(void)
 
     /*struct lcore_conf *conf = &lcore_conf[lcore_id];*/
 
-    packet_descriptor_t pd[MAX_PKT_BURST];
+    packet_descriptor_t pd;
+    init_dataplane(&pd, qconf->state.tables);
 
-    RTE_LOG(INFO, P4_FWD,"entering pd loop \n");
-    for(int i=0; i< MAX_PKT_BURST; i++){ 
-    	init_dataplane(&pd[i], qconf->state.tables);
-    }
-    init_tables(qconf->state.tables);
-   
-    RTE_LOG(INFO, P4_FWD,"entering while loop \n");
     while (1) {
 
         cur_tsc = rte_rdtsc();
@@ -493,23 +428,32 @@ dpdk_main_loop(void)
 
             prev_tsc = cur_tsc;
         }
+
         /*
          * Read packet from RX queues
          */
-      int batch_size =0; 
-       for (i = 0; i < qconf->n_rx_queue; i++) {
+        for (i = 0; i < qconf->n_rx_queue; i++) {
 
             portid = qconf->rx_queue_list[i].port_id;
             queueid = qconf->rx_queue_list[i].queue_id;
             nb_rx = rte_eth_rx_burst((uint8_t) portid, queueid,
-                         pkts_burst, MAX_PKT_BURST); 
-	   batch_size = nb_rx;
-	   /*for(int j=0;j<nb_rx;j++){
-	          p = pkts_burst[j];	    
-                  rte_prefetch0(rte_pktmbuf_mtod(p, void *));
-	    	  packet_received(&pd[0], p, portid, qconf);
-	   }*/
-	  packets_received(pd, batch_size, pkts_burst, portid, qconf);
+                         pkts_burst, MAX_PKT_BURST);
+
+
+//
+	
+	    void *batch_rips[nb_rx];
+            for (j = 0; j < nb_rx; j++) {
+		batch_rips[j] = &&fpp_start;
+	    }
+fpp_start:
+	    if(I                 
+
+		p = pkts_burst[j];
+                rte_prefetch0(rte_pktmbuf_mtod(p, void *));
+
+                packet_received(&pd, p, portid, qconf);
+            }
         }
     }
 }

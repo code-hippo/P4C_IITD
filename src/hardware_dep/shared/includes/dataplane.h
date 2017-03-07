@@ -107,5 +107,5 @@ extern counter_t counter_config[];
 
 void init_dataplane(packet_descriptor_t* packet, lookup_table_t** tables);
 void handle_packet(packet_descriptor_t* packet, lookup_table_t** tables);
-
+void handle_packets(packet_descriptor_t* packet, int batch_size, lookup_table_t** tables);
 #endif

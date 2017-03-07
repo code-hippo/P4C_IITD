@@ -100,7 +100,7 @@
 
 // Extracts a field to the given destination [ONLY BYTE ALIGNED]
 #define EXTRACT_BYTEBUF(pd, field, dst) { \
-    memcpy(dst, FIELD_BYTE_ADDR(pd, field_desc(field)), field_desc(field).bytewidth); \
+	memcpy(dst, FIELD_BYTE_ADDR(pd, field_desc(field)), field_desc(field).bytewidth); \
 }
 
 #endif // DPDK_PRIMITIVES_H

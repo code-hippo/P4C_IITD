@@ -21,13 +21,66 @@ from utils.hlir import *
 #[ 
 #[ extern void parse_packet(packet_descriptor_t* pd, lookup_table_t** tables);
 #[
+#[ extern void parse_packets(packet_descriptor_t* pd, int batch_size, lookup_table_t** tables);
+#[
 #[ extern void increase_counter (int counterid, int index);
 #[
+
+#[ void apply_table_smacs(packet_descriptor_t* pd, int batch_size, lookup_table_t** tables);// sugar@29 
+#[ void apply_table_dmacs(packet_descriptor_t* pd, int batch_size, lookup_table_t** tables);// sugar@29 
 for table in hlir.p4_tables.values():
     #[ void apply_table_${table.name}(packet_descriptor_t* pd, lookup_table_t** tables);
 #[
 
 #[ uint8_t reverse_buffer[${max([t[1] for t in map(getTypeAndLength, hlir.p4_tables.values())])}];
+
+
+
+#[ void table_smacs_key(packet_descriptor_t* pd, int batch_size,  uint8_t* key[][6]) {// sugar@41
+#[ for(int i=0;i<batch_size; i++){
+#[  EXTRACT_BYTEBUF(&pd[i], field_instance_ethernet_srcAddr, (uint8_t *)key[i])// sugar@49
+#[  //key[i] += 6;// sugar@50
+#[ }
+#[ }
+
+#[ void apply_table_smacs(packet_descriptor_t* pd, int batch_size, lookup_table_t** tables)// sugar@64
+#[ {// sugar@65
+#[     debug("  :::: EXECUTING TABLE smac\n");// sugar@66
+#[     uint8_t* key[batch_size][6];// sugar@67
+#[     table_smacs_key(pd, key);// sugar@68
+#[     uint8_t** values;
+#[     values = exact_lookups(tables[TABLE_smac], batch_size, key);// sugar@69
+#[     int index[batch_size];
+#[     struct smac_action* res[batch_size];
+#[     for(int i=0;i<batch_size;i++){
+#[       index[i] = *(int*)(values[i]+sizeof(struct smac_action));
+#[       (void)index[i];// sugar@70
+#[       res[i] = (struct smac_action*)values[i];// sugar@71
+#[       if(res[i] == NULL) {// sugar@74
+#[         debug("    :: NO RESULT, NO DEFAULT ACTION, IGNORING PACKET.\n");// sugar@75
+#[         continue;// sugar@76
+#[       }// sugar@77
+#[       switch (res[i]->action_id) {// sugar@78
+#[         case action_mac_learn:// sugar@80
+#[         debug("    :: EXECUTING ACTION mac_learn...\n");// sugar@81
+#[         action_code_mac_learn(&pd[i], tables);// sugar@85
+#[             break;// sugar@86
+#[         case action__nop:// sugar@80
+#[           debug("    :: EXECUTING ACTION _nop...\n");// sugar@81
+#[         action_code__nop(&pd[i], tables);// sugar@85
+#[             break;// sugar@86
+#[             }// sugar@87
+#[         switch (res[i]->action_id) {// sugar@96
+#[         case action_mac_learn:// sugar@98
+#[             return apply_table_dmac(&pd[i], tables);// sugar@99
+#[             break;// sugar@100
+#[         case action__nop:// sugar@98
+#[             return apply_table_dmac(&pd[i], tables);// sugar@99
+#[             break;// sugar@100
+#[         }// sugar@101
+#[     }
+#[ }// sugar@102
+
 
 def match_type_order(t):
     if t is p4.p4_match_type.P4_MATCH_EXACT:   return 0
@@ -55,6 +108,7 @@ for table in hlir.p4_tables.values():
         #[ for(c = 0; c < ${key_length}; c++) *(key+c) = *(reverse_buffer+c);
     #[ }
     #[
+
 
 for table in hlir.p4_tables.values():
     table_type, key_length = getTypeAndLength(table)
@@ -131,7 +185,18 @@ for table in hlir.p4_tables.values():
 #[     init_keyless_tables();
 #[ }
 
-#[ 
+#[
+#[ void handle_packets(packet_descriptor_t* pd, int batch_size, lookup_table_t** tables)
+#[ {
+#[     debug(" :::: batch_size : %u \n",batch_size);
+#[     for( int i=0;i<batch_size;i ++){
+#[        int value32;
+#[        EXTRACT_INT32_BITS((&pd[i], field_instance_standard_metadata_ingress_port, value32)
+#[   
+#[     }
+#[     parse_packets(pd, batch_size, tables);
+#[ }
+#[      
 #[ void handle_packet(packet_descriptor_t* pd, lookup_table_t** tables)
 #[ {
 #[     int value32;

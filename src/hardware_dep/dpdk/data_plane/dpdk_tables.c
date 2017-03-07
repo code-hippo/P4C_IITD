@@ -14,10 +14,10 @@
 #include "backend.h"
 #include "dataplane.h"
 #include "dpdk_tables.h"
-
+#include <rte_cycles.h>
 // ============================================================================
 // LOOKUP TABLE IMPLEMENTATIONS
-
+#include <rte_prefetch.h>
 #include <rte_hash.h>       // EXACT
 #include <rte_hash_crc.h>
 #include <nmmintrin.h> 
@@ -139,7 +139,7 @@ lpm4_add(struct rte_lpm* l, uint32_t key, uint8_t depth, uint8_t value)
     int ret = rte_lpm_add(l, key, depth, value);
     if (ret < 0)
         rte_exit(EXIT_FAILURE, "Unable to add entry to the LPM table\n");
-    debug("LPM: Added 0x%08x / %d (%d)\n", (unsigned)key, depth, value);
+    //debug("LPM: Added 0x%08x / %d (%d)\n", (unsigned)key, depth, value);
 }
 
 void
@@ -268,6 +268,305 @@ ternary_add(lookup_table_t* t, uint8_t* key, uint8_t* mask, uint8_t* value)
 
 // ----------------------------------------------------------------------------
 // LOOKUP
+/*
+#define NULL_SIGNATURE                  0
+
+#define RTE_HASH_BUCKET_ENTRIES         4
+
+static inline hash_sig_t
+rte_hash_secondary_hash(const hash_sig_t primary_hash)
+{
+        static const unsigned all_bits_shift = 12;
+        static const unsigned alt_bits_xor = 0x5bd1e995;
+
+        uint32_t tag = primary_hash >> all_bits_shift;
+
+        return primary_hash ^ ((tag + 1) * alt_bits_xor);
+}
+*/
+/*
+int32_t
+rte_hash_lookup2(const struct rte_hash *h, const void *key)
+{
+        RETURN_IF_TRUE(((h == NULL) || (key == NULL)), -EINVAL);
+        return __rte_hash_lookup_with_hash2(h, key, rte_hash_hash(h, key), NULL);
+}
+
+static inline int32_t
+__rte_hash_lookup_with_hash2(const struct rte_hash *h, const void *key,
+                                        hash_sig_t sig, void **data)
+{
+        uint32_t bucket_idx;
+        hash_sig_t alt_hash;
+        unsigned i;
+        struct rte_hash_bucket *bkt;
+        struct rte_hash_key *k, *keys = h->key_store;
+
+        bucket_idx = sig & h->bucket_bitmask;
+        bkt = &h->buckets[bucket_idx];
+*/
+        /* Check if key is in primary location */
+  /*      for (i = 0; i < RTE_HASH_BUCKET_ENTRIES; i++) {
+                if (bkt->signatures[i].current == sig &&
+                                bkt->signatures[i].sig != NULL_SIGNATURE) {
+                        k = (struct rte_hash_key *) ((char *)keys +
+                                        bkt->key_idx[i] * h->key_entry_size);
+                        if (rte_hash_cmp_eq(key, k->key, h) == 0) {
+                                if (data != NULL)
+                                        *data = k->pdata;
+    */                            /*
+                                 * Return index where key is stored,
+                                 * substracting the first dummy index
+                                 */
+    /*                            return bkt->key_idx[i] - 1;
+                        }
+                }
+        }
+
+      */  /* Calculate secondary hash */
+      /*  alt_hash = rte_hash_secondary_hash(sig);
+        bucket_idx = alt_hash & h->bucket_bitmask;
+        bkt = &h->buckets[bucket_idx];
+*/
+        /* Check if key is in secondary location */
+  /*      for (i = 0; i < RTE_HASH_BUCKET_ENTRIES; i++) {
+                if (bkt->signatures[i].current == alt_hash &&
+                                bkt->signatures[i].alt == sig) {
+                        k = (struct rte_hash_key *) ((char *)keys +
+                                        bkt->key_idx[i] * h->key_entry_size);
+                        if (rte_hash_cmp_eq(key, k->key, h) == 0) {
+                                if (data != NULL)
+                                        *data = k->pdata;
+    */                            /*
+                                 * Return index where key is stored,
+                                 * substracting the first dummy index
+                                 */
+      /*                          return bkt->key_idx[i] - 1;
+                        }
+                }
+        }
+
+        return -ENOENT;
+}
+
+rte_prefetch0(rte_pktmbuf_mtod(pkts_burst[j+1], void *));
+*/
+
+/** A hash table structure. */
+
+#define RTE_HASH_BUCKET_ENTRIES         4
+/*
+static inline void rte_prefetch0(const volatile void *p)
+{
+        asm volatile ("PRFM PLDL1KEEP, [%0]" : : "r" (p));
+}
+*/
+
+struct rte_hash_signatures {
+        union {
+                struct {
+                        hash_sig_t current;
+                        hash_sig_t alt;
+                };
+                uint64_t sig;
+        };
+};
+
+
+
+struct rte_hash_bucket {
+        struct rte_hash_signatures signatures[RTE_HASH_BUCKET_ENTRIES];
+        /* Includes dummy key index that always contains index 0 */
+        uint32_t key_idx[RTE_HASH_BUCKET_ENTRIES + 1];
+        uint8_t flag[RTE_HASH_BUCKET_ENTRIES];
+} __rte_cache_aligned;
+
+
+typedef struct {
+        volatile int locked; /**< lock status 0 = unlocked, 1 = locked */
+} rte_spinlock_t;
+
+
+enum cmp_jump_table_case {
+        KEY_CUSTOM = 0,
+        KEY_16_BYTES,
+        KEY_32_BYTES,
+        KEY_48_BYTES,
+        KEY_64_BYTES,
+        KEY_80_BYTES,
+        KEY_96_BYTES,
+        KEY_112_BYTES,
+        KEY_128_BYTES,
+        KEY_OTHER_BYTES,
+        NUM_KEY_CMP_CASES,
+};
+
+enum add_key_case {
+        ADD_KEY_SINGLEWRITER = 0,
+        ADD_KEY_MULTIWRITER,
+        ADD_KEY_MULTIWRITER_TM,
+};
+
+
+struct rte_hash {
+        char name[RTE_HASH_NAMESIZE];   /**< Name of the hash. */
+        uint32_t entries;               /**< Total table entries. */
+        uint32_t num_buckets;           /**< Number of buckets in table. */
+        uint32_t key_len;               /**< Length of hash key. */
+        rte_hash_function hash_func;    /**< Function used to calculate hash. */
+        uint32_t hash_func_init_val;    /**< Init value used by hash_func. */
+        rte_hash_cmp_eq_t rte_hash_custom_cmp_eq;
+        /**< Custom function used to compare keys. */
+        enum cmp_jump_table_case cmp_jump_table_idx;
+        /**< Indicates which compare function to use. */
+        uint32_t bucket_bitmask;        /**< Bitmask for getting bucket index
+                                                from hash signature. */
+        uint32_t key_entry_size;         /**< Size of each key entry. */
+
+        struct rte_ring *free_slots;    /**< Ring that stores all indexes
+                                                of the free slots in the key table */
+        void *key_store;                /**< Table storing all keys and data */
+        struct rte_hash_bucket *buckets;        /**< Table with buckets storing all the
+                                                        hash values and key indexes
+                                                        to the key table*/
+        uint8_t hw_trans_mem_support;   /**< Hardware transactional
+                                                        memory support */
+        struct lcore_cache *local_free_slots;
+        /**< Local cache per lcore, storing some indexes of the free slots */
+        enum add_key_case add_key; /**< Multi-writer hash add behavior */
+
+        rte_spinlock_t *multiwriter_lock; /**< Multi-writer spinlock for w/o TM */
+} __rte_cache_aligned;
+
+#define false 0
+#define true 1
+typedef int bool; // or #define bool int
+
+//int batch_size=32;
+
+#define NULL_SIGNATURE                  0
+
+#define KEY_ALIGNMENT                   16
+
+
+struct rte_hash_key {
+        union {
+                uintptr_t idata;
+                void *pdata;
+        };
+        char key[0];
+} __attribute__((aligned(KEY_ALIGNMENT)));
+
+static int
+rte_hash_k16_cmp_eq(const void *key1, const void *key2, size_t key_len __rte_unused)
+{
+        const __m128i k1 = _mm_loadu_si128((const __m128i *) key1);
+        const __m128i k2 = _mm_loadu_si128((const __m128i *) key2);
+#ifdef RTE_MACHINE_CPUFLAG_SSE4_1
+        const __m128i x = _mm_xor_si128(k1, k2);
+
+        return !_mm_test_all_zeros(x, x);
+#else
+        const __m128i x = _mm_cmpeq_epi32(k1, k2);
+
+        return _mm_movemask_epi8(x) != 0xffff;
+#endif
+}
+
+static int
+rte_hash_k32_cmp_eq(const void *key1, const void *key2, size_t key_len)
+{
+        return rte_hash_k16_cmp_eq(key1, key2, key_len) ||
+                rte_hash_k16_cmp_eq((const char *) key1 + 16,
+                                (const char *) key2 + 16, key_len);
+}
+
+static int
+rte_hash_k48_cmp_eq(const void *key1, const void *key2, size_t key_len)
+{
+        return rte_hash_k16_cmp_eq(key1, key2, key_len) ||
+                rte_hash_k16_cmp_eq((const char *) key1 + 16,
+                                (const char *) key2 + 16, key_len) ||
+                rte_hash_k16_cmp_eq((const char *) key1 + 32,
+                                (const char *) key2 + 32, key_len);
+}
+
+static int
+rte_hash_k64_cmp_eq(const void *key1, const void *key2, size_t key_len)
+{
+        return rte_hash_k32_cmp_eq(key1, key2, key_len) ||
+                rte_hash_k32_cmp_eq((const char *) key1 + 32,
+                                (const char *) key2 + 32, key_len);
+}
+
+static int
+rte_hash_k80_cmp_eq(const void *key1, const void *key2, size_t key_len)
+{
+        return rte_hash_k64_cmp_eq(key1, key2, key_len) ||
+                rte_hash_k16_cmp_eq((const char *) key1 + 64,
+                                (const char *) key2 + 64, key_len);
+}
+
+static int
+rte_hash_k96_cmp_eq(const void *key1, const void *key2, size_t key_len)
+{
+        return rte_hash_k64_cmp_eq(key1, key2, key_len) ||
+                rte_hash_k32_cmp_eq((const char *) key1 + 64,
+                                (const char *) key2 + 64, key_len);
+}
+
+static int
+rte_hash_k112_cmp_eq(const void *key1, const void *key2, size_t key_len)
+{
+        return rte_hash_k64_cmp_eq(key1, key2, key_len) ||
+                rte_hash_k32_cmp_eq((const char *) key1 + 64,
+                                (const char *) key2 + 64, key_len) ||
+                rte_hash_k16_cmp_eq((const char *) key1 + 96,
+                                (const char *) key2 + 96, key_len);
+}
+
+static int
+rte_hash_k128_cmp_eq(const void *key1, const void *key2, size_t key_len)
+{
+        return rte_hash_k64_cmp_eq(key1, key2, key_len) ||
+                rte_hash_k64_cmp_eq((const char *) key1 + 64,
+                                (const char *) key2 + 64, key_len);
+}
+
+const rte_hash_cmp_eq_t cmp_jump_table2[NUM_KEY_CMP_CASES] = {
+        NULL,
+        rte_hash_k16_cmp_eq,
+        rte_hash_k32_cmp_eq,
+        rte_hash_k48_cmp_eq,
+        rte_hash_k64_cmp_eq,
+        rte_hash_k80_cmp_eq,
+        rte_hash_k96_cmp_eq,
+        rte_hash_k112_cmp_eq,
+        rte_hash_k128_cmp_eq,
+        memcmp
+};
+
+static inline hash_sig_t
+rte_hash_secondary_hash(const hash_sig_t primary_hash)
+{
+        static const unsigned all_bits_shift = 12;
+        static const unsigned alt_bits_xor = 0x5bd1e995;
+
+        uint32_t tag = primary_hash >> all_bits_shift;
+
+        return primary_hash ^ ((tag + 1) * alt_bits_xor);
+}
+
+
+static inline int
+rte_hash_cmp_eq(const void *key1, const void *key2, const struct rte_hash *h)
+{
+        if (h->cmp_jump_table_idx == KEY_CUSTOM)
+                return h->rte_hash_custom_cmp_eq(key1, key2, h->key_len);
+        else
+                return cmp_jump_table2[h->cmp_jump_table_idx](key1, key2, h->key_len);
+}
+
 
 uint8_t*
 exact_lookup(lookup_table_t* t, uint8_t* key)
@@ -275,8 +574,172 @@ exact_lookup(lookup_table_t* t, uint8_t* key)
     if(t->key_size == 0) return t->default_val;
     extended_table_t* ext = (extended_table_t*)t->table;
     int ret = rte_hash_lookup(ext->rte_table, key);
+    debug(" status : %d\n", ret);
     return (ret < 0)? t->default_val : ext->content[ret % 256];
 }
+
+// To check the deault (or dpdk hash_lookup) exact_lookups in batch mode
+void
+_exact_lookups(lookup_table_t* t, int  batch_size, uint8_t* key_[][6], uint8_t **I_)
+{
+    for( int i=0;i< batch_size ; i++){
+    if(t->key_size == 0) return t->default_val;
+    extended_table_t* ext = (extended_table_t*)t->table;
+    int ret = rte_hash_lookup(ext->rte_table, (uint8_t *)key_[i]);
+    debug(" status : %d\n", ret);
+    I_[i] =  (ret < 0)? t->default_val : ext->content[ret % 256];
+    }
+       
+}
+
+uint64_t prev_tsc, diff_tsc, curr_tsc; // part of timing profiles      
+
+
+void
+exact_lookups(lookup_table_t* t, int batch_size, uint8_t* key_[][6], uint8_t **I_)
+{
+    extended_table_t* ext = (extended_table_t*)t->table;
+    const struct rte_hash *h = ext->rte_table;
+
+    int I[batch_size];
+    struct rte_hash_bucket *bkt[batch_size];
+
+    uint32_t bucket_idx;
+    
+    void *key[batch_size];
+    /* Storage of primary hash */
+    /* Storage of secondary hash */
+    hash_sig_t sig[batch_size];
+    hash_sig_t alt_hash[batch_size];
+    //debug(" control entered exact_lookups \n");
+    bool found[batch_size];
+    for(int temp=0; temp<batch_size; temp++){  
+//	prev_tsc = rte_rdtsc();
+	found[temp] = false; 
+	if(t->key_size == 0){
+	    I[temp] = -ENOENT;
+	    found[temp] =true;
+            continue;
+	 }
+        
+        key[temp] = (void *)(uint8_t *)key_[temp];
+	/* Calculate primary hash */
+	sig[temp] = rte_hash_hash(h, key[temp]);
+        bucket_idx = sig[temp] & h->bucket_bitmask;
+
+//	curr_tsc = rte_rdtsc();
+//	debug("loop1 exact_lookups cycles : %llu\n", curr_tsc - prev_tsc);
+        
+	bkt[temp] = &(h->buckets[bucket_idx]);
+	rte_prefetch0(bkt[temp]);
+    }
+
+    unsigned i; 
+    struct rte_hash_key *k, *keys = h->key_store;
+     
+//fpp_label1 :
+        
+//  debug(" control loop1(primary index lookup) in exact_lookups \n");
+    for(int temp =0; temp < batch_size; temp++){
+        /* Check if key is in primary location */
+
+//	prev_tsc = rte_rdtsc();  	
+	if(found[temp] ==true){
+		continue;
+	}
+       
+        for (i = 0; i < RTE_HASH_BUCKET_ENTRIES; i++) {
+            if (bkt[temp]->signatures[i].current == sig[temp] &&
+            	    bkt[temp]->signatures[i].sig != NULL_SIGNATURE) {
+                k = (struct rte_hash_key *) ((char *)keys +
+                     	bkt[temp]->key_idx[i] * h->key_entry_size);
+                if (rte_hash_cmp_eq(key[temp], k->key, h) == 0) {
+                        /*
+                        * Return index where key is stored,
+                        * substracting the first dummy index
+                        */
+                    I[temp] =  bkt[temp]->key_idx[i] - 1;
+		    found[temp] = true;
+		    break;
+                }
+            }
+        }
+
+	if(found[temp]){
+//		curr_tsc = rte_rdtsc();
+//		debug("loop2_found exact_lookups cycles : %llu\n", curr_tsc - prev_tsc);
+	    continue;
+	}
+
+        /* Calculate secondary hash */
+        alt_hash[temp] = rte_hash_secondary_hash(sig[temp]);
+        bucket_idx = alt_hash[temp] & h->bucket_bitmask;
+
+//	curr_tsc = rte_rdtsc();
+
+//	debug("loop2_found exact_lookups cycles : %llu\n", curr_tsc - prev_tsc);
+	bkt[temp] = &h->buckets[bucket_idx];
+	rte_prefetch0(bkt[temp]);
+    }   
+
+//fpp_label2 :  
+          
+//  debug("control in loop2(secondary index lookup) of exact_lookups \n");
+    for( int temp =0; temp < batch_size; temp++){
+    	/* Check if key is in secondary location */
+//      prev_tsc = rte_rdtsc();
+        if(found[temp]) {
+	    continue;
+	}
+        sig[temp] = rte_hash_hash(h, key[temp]);
+
+
+        for (i = 0; i < RTE_HASH_BUCKET_ENTRIES; i++) {
+            if (bkt[temp]->signatures[i].current == alt_hash[temp] &&
+                            bkt[temp]->signatures[i].alt == sig[temp]) {
+                k = (struct rte_hash_key *) ((char *)keys +
+                                bkt[temp]->key_idx[i] * h->key_entry_size);
+                if (rte_hash_cmp_eq(key[temp], k->key, h) == 0) {
+//              	if (data != NULL)
+//	                    *data = k->pdata;
+                        /*
+                        * Return index where key is stored,
+                        * substracting the first dummy index
+                        */
+                    I[temp] =  bkt[temp]->key_idx[i] - 1;
+		    found[temp] = true;
+		    break;
+                }
+            }   
+        }
+	if(found[temp]) {
+//	    curr_tsc = rte_rdtsc();
+//	    debug("loop3_found exact_lookups cycles : %llu\n", curr_tsc - prev_tsc);
+	    continue;
+	}
+	I[temp] = -ENOENT;
+	
+//	curr_tsc = rte_rdtsc();
+//	debug("loop3 exact_lookups cycles : %llu\n", curr_tsc - prev_tsc);
+    }
+
+//fpp_end :
+        //debug("end_loop in exact_lookups \n");
+	for(int i=0;i<batch_size;i++){
+//          debug("size : %d",sizeof(t->default_val));
+//	    debug("the lookup success status %d\n", I[i]);  
+	
+//	    prev_tsc = rte_rdtsc();   	
+	    I_[i] =  (I[i] < 0)? t->default_val : ext->content[I[i] % 256];
+
+//	    curr_tsc = rte_rdtsc();
+//	    debug("loop1 exact_lookups cycles : %llu", curr_tsc - prev_tsc);
+//	    debug(" print actins : %p \n",(uint8_t *) I_[i]);
+	};
+//      debug(" end of exact_lookups \n");
+}
+
+
 
 uint8_t*
 lpm_lookup(lookup_table_t* t, uint8_t* key)
@@ -290,7 +753,8 @@ lpm_lookup(lookup_table_t* t, uint8_t* key)
         memcpy(&key32, key, t->key_size);
 
         uint8_t result;
-        int ret = rte_lpm_lookup(ext->rte_table, key32, &result);
+	int ret = 0;
+        //int ret = rte_lpm_lookup(ext->rte_table, key32, &result);
         return ret == 0 ? ext->content[result] : t->default_val;
     }
     else if(t->key_size <= 16)

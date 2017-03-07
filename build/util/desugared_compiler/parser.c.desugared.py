@@ -18,8 +18,7 @@ from utils.misc import addError, addWarning
 def format_state(state):
     generated_code = ""
     if isinstance(state, p4.p4_parse_state):
-
-        #[ return parse_state_${state.name}(pd, buf, tables);
+        generated_code += " return parse_state_" + str(state.name) + "(pd, buf, tables);// sugar@21\n"
     elif isinstance(state, p4.p4_parser_exception):
         print "Parser exceptions are not supported yet."
     else:
@@ -70,66 +69,65 @@ for pe_name, pe in pe_dict.items():
 for pe_name, pe in hlir.p4_parser_exceptions.items():
     pe_dict[pe_name] = pe
 
-#[ #include "dpdk_lib.h"
-#[ #include "actions.h" // apply_table_* and action_code_*
-#[
-#[ void print_mac(uint8_t* v) { printf("%02hhX:%02hhX:%02hhX:%02hhX:%02hhX:%02hhX\n", v[0], v[1], v[2], v[3], v[4], v[5]); }
-#[ void print_ip(uint8_t* v) { printf("%d.%d.%d.%d\n",v[0],v[1],v[2],v[3]); }
-#[ 
-#[ static void
-#[ extract_header(uint8_t* buf, packet_descriptor_t* pd, header_instance_t h) {
-#[     pd->headers[h] =
-#[       (header_descriptor_t) {
-#[         .type = h,
-#[         .pointer = buf,
-#[         .length = header_instance_byte_width[h]
-#[       };
-#[ }
-#[ 
+generated_code += " #include \"dpdk_lib.h\"// sugar@72\n"
+generated_code += " #include \"actions.h\" // apply_table_* and action_code_*// sugar@73\n"
+generated_code += "\n"
+generated_code += " void print_mac(uint8_t* v) { printf(\"%02hhX:%02hhX:%02hhX:%02hhX:%02hhX:%02hhX\\n\", v[0], v[1], v[2], v[3], v[4], v[5]); }// sugar@75\n"
+generated_code += " void print_ip(uint8_t* v) { printf(\"%d.%d.%d.%d\\n\",v[0],v[1],v[2],v[3]); }// sugar@76\n"
+generated_code += " \n"
+generated_code += " static void// sugar@78\n"
+generated_code += " extract_header(uint8_t* buf, packet_descriptor_t* pd, header_instance_t h) {// sugar@79\n"
+generated_code += "     pd->headers[h] =// sugar@80\n"
+generated_code += "       (header_descriptor_t) {// sugar@81\n"
+generated_code += "         .type = h,// sugar@82\n"
+generated_code += "         .pointer = buf,// sugar@83\n"
+generated_code += "         .length = header_instance_byte_width[h]// sugar@84\n"
+generated_code += "       };// sugar@85\n"
+generated_code += " }// sugar@86\n"
+generated_code += " \n"
 
 for pe_name, pe in pe_dict.items():
-    #[ static inline void ${pe_name}(packet_descriptor_t *pd) {
+    generated_code += " static inline void " + str(pe_name) + "(packet_descriptor_t *pd) {// sugar@90\n"
     if pe.return_or_drop == p4.P4_PARSER_DROP:
-        #[ drop(pd);
+        generated_code += " drop(pd);// sugar@92\n"
     else:
         format_p4_node(pe.return_or_drop)
-    #[ }
+    generated_code += " }// sugar@95\n"
 
 for state_name, parse_state in hlir.p4_parse_states.items():
-    #[ static void parse_state_${state_name}(packet_descriptor_t* pd, uint8_t* buf, lookup_table_t** tables);
-#[
-    #[ static void parse_states_${state_name}(packet_descriptor_t* pd, int batch_size, lookup_table_t** tables);
+    generated_code += " static void parse_state_" + str(state_name) + "(packet_descriptor_t* pd, uint8_t* buf, lookup_table_t** tables);// sugar@98\n"
+generated_code += "\n"
 
 for state_name, parse_state in hlir.p4_parse_states.items():
     branch_on = parse_state.branch_on
     if branch_on:
-        #[ static inline void build_key_${state_name}(packet_descriptor_t *pd, uint8_t *buf, uint8_t *key) {
+        generated_code += " static inline void build_key_" + str(state_name) + "(packet_descriptor_t *pd, uint8_t *buf, uint8_t *key) {// sugar@104\n"
         for switch_ref in branch_on:
             if type(switch_ref) is p4.p4_field:
                 field_instance = switch_ref
                 byte_width = (field_instance.width + 7) / 8
                 if byte_width <= 4:
-                    #[ EXTRACT_INT32_BITS(pd, ${fld_id(field_instance)}, *(uint32_t*)key)
-                    #[ key += sizeof(uint32_t);
+                    generated_code += " EXTRACT_INT32_BITS(pd, " + str(fld_id(field_instance)) + ", *(uint32_t*)key)// sugar@110\n"
+                    generated_code += " key += sizeof(uint32_t);// sugar@111\n"
                 else:
-                    #[ EXTRACT_BYTEBUF(pd, ${fld_id(field_instance)}, key)
-                    #[ key += ${byte_width};
+                    generated_code += " EXTRACT_BYTEBUF(pd, " + str(fld_id(field_instance)) + ", key)// sugar@113\n"
+                    generated_code += " key += " + str(byte_width) + ";// sugar@114\n"
             elif type(switch_ref) is tuple:
-                #[     uint8_t* ptr;
+                generated_code += "     uint8_t* ptr;// sugar@116\n"
                 offset, width = switch_ref
                 # TODO
                 addError("generating parse state %s"%state_name, "current() calls are not supported yet")
-        #[ }
-#[ static void parse_states_parse_ethernet(packet_descriptor_t* pd, int batch_size, lookup_table_t** tables);// sugar@99 
+        generated_code += " }// sugar@120\n"
+
 for state_name, parse_state in hlir.p4_parse_states.items():
-    #[ static void parse_state_${state_name}(packet_descriptor_t* pd, uint8_t* buf, lookup_table_t** tables)
-    #[ {
+    generated_code += " static void parse_state_" + str(state_name) + "(packet_descriptor_t* pd, uint8_t* buf, lookup_table_t** tables)// sugar@123\n"
+    generated_code += " {// sugar@124\n"
     
     for call in parse_state.call_sequence:
         if call[0] == p4.parse_call.extract:
             header_instance_name = hdr_prefix(call[1].name)
-            #[     extract_header(buf, pd, ${header_instance_name});
-            #[     buf += header_instance_byte_width[${header_instance_name}];
+            generated_code += "     extract_header(buf, pd, " + str(header_instance_name) + ");// sugar@129\n"
+            generated_code += "     buf += header_instance_byte_width[" + str(header_instance_name) + "];// sugar@130\n"
         elif call[0] == p4.parse_call.set:
             dest_field, src = call[1], call[2]
             if type(src) is int or type(src) is long:
@@ -146,11 +144,11 @@ for state_name, parse_state in hlir.p4_parse_states.items():
     branch_on = parse_state.branch_on
     if not branch_on:
         branch_case, next_state = parse_state.branch_to.items()[0]
-        #[ ${format_state(next_state)}
+        generated_code += " " + str(format_state(next_state)) + "// sugar@147\n"
     else:
         key_byte_width = get_key_byte_width(branch_on)
-        #[ uint8_t key[${key_byte_width}];
-        #[ build_key_${state_name}(pd, buf, key);
+        generated_code += " uint8_t key[" + str(key_byte_width) + "];// sugar@150\n"
+        generated_code += " build_key_" + str(state_name) + "(pd, buf, key);// sugar@151\n"
         has_default_case = False
         for case_num, case in enumerate(parse_state.branch_to.items()):
             branch_case, next_state = case
@@ -158,17 +156,17 @@ for state_name, parse_state in hlir.p4_parse_states.items():
             value_name  = "case_value_%d" % case_num
             if branch_case == p4.P4_DEFAULT:
                 has_default_case = True
-                #[ ${format_state(next_state)}
+                generated_code += " " + str(format_state(next_state)) + "// sugar@159\n"
                 continue
             if type(branch_case) is int:
                 value = branch_case
                 value_len, l = int_to_byte_array(value)
-                #[     uint8_t ${value_name}[${value_len}] = {
+                generated_code += "     uint8_t " + str(value_name) + "[" + str(value_len) + "] = {// sugar@164\n"
                 for c in l:
-                    #[         ${c},
-                #[     };
-                #[     if ( memcmp(key, ${value_name}, ${value_len}) == 0)
-                #[         ${format_state(next_state)}
+                    generated_code += "         " + str(c) + ",// sugar@166\n"
+                generated_code += "     };// sugar@167\n"
+                generated_code += "     if ( memcmp(key, " + str(value_name) + ", " + str(value_len) + ") == 0)// sugar@168\n"
+                generated_code += "         " + str(format_state(next_state)) + "// sugar@169\n"
             elif type(branch_case) is tuple:
                 value = branch_case[0]
                 mask = branch_case[1]
@@ -180,31 +178,10 @@ for state_name, parse_state in hlir.p4_parse_states.items():
                 addError("generating parse state %s"%state_name, "value sets are not supported yet")
                 continue
         if not has_default_case:
-            #[     return NULL;
-    #[ }
-    #[ 
-#[ static void parse_states_start(packet_descriptor_t* pd, int batch_size, lookup_table_t** tables)
-#[ {
-#[  return parse_states_parse_ethernet(pd, batch_size, tables);
-#[ }
+            generated_code += "     return NULL;// sugar@181\n"
+    generated_code += " }// sugar@182\n"
+    generated_code += " \n"
 
-#[ static void parse_states_parse_ethernet(packet_descriptor_t* pd, int batch_size, lookup_table_t** tables)// sugar@124
-#[  {// sugar@125
-#[      uint8_t* buf;
-#[      for(int i=0;i<batch_size; i++){
-#[         buf = (uint8_t*) pd[i].data;
-#[         extract_header(buf, &pd[i], header_instance_ethernet);// sugar@130
-#[         buf += header_instance_byte_width[header_instance_ethernet];// sugar@131
-#[         return apply_table_smacs(pd, batch_size, tables);// sugar@148
-#[      }
-#[  }// sugar@183
-
-
-#[ void parse_packet(packet_descriptor_t* pd, lookup_table_t** tables) {
-#[     parse_state_start(pd, pd->data, tables);
-#[ }
-#[ 
-#[ void parse_packets(packet_descriptor_t* pd, int batch_size, lookup_table_t** tables) {
-#[ 	debug("   :::: batch_size parser : %d\n", batch_size); 
-#[ 	parse_states_start(pd, batch_size, tables); 
-#[ }
+generated_code += " void parse_packet(packet_descriptor_t* pd, lookup_table_t** tables) {// sugar@185\n"
+generated_code += "     parse_state_start(pd, pd->data, tables);// sugar@186\n"
+generated_code += " }// sugar@187\n"
